@@ -1,9 +1,11 @@
 from sqlalchemy.exc import IntegrityError
-from flask import jsonify, request
+from flask import jsonify, request, session
 import asyncio
 
 from app import app
-from app.security import encrypt_hash
+from app.security import ( 
+  encrypt_hash, create_token, decode_token, login_required, token_required
+)
 from app.database.schemas import User, users_schema
 from app.controllers.usercontroller import (
   create_user, authorization
@@ -11,9 +13,14 @@ from app.controllers.usercontroller import (
 
 loop = asyncio.get_event_loop()
 
-@app.route('/', methods=['GET',])
+@app.route('/test-token/', methods=['GET',])
 def home():
-  return jsonify(message="Hello world")
+  data = request.headers.get('X-access-token')
+  
+  if( decode_token(data) is not None ):
+    return jsonify(message="Valid token!")
+  
+  return jsonify(message="This token is invalid!")
 
 @app.route('/register/', methods=['POST',])
 def register():
@@ -44,8 +51,21 @@ def login():
     authorized = loop.run_until_complete(authorization(user=data))
 
     if( authorized is not None ):
-      return jsonify(message="Authorized!", data=users_schema.dump([authorized])), 200 # OK
+      payload = users_schema.dump([authorized])[0]
+      payload['uuid'] = str(payload['uuid'])
+      token = create_token(payload)
+      session['logged'] = True
 
-    return jsonify(message="Não foi possível autenticar!"), 401 # Unauthorized
+      return jsonify(token=token), 200 # OK
+
+    return jsonify(message="Não foi possível autenticar!", token=None), 401 # Unauthorized
     
-  return jsonify(message="Preencha todos os campos!"), 400 # Bad Request
+  return jsonify(message="Preencha todos os campos!", token=None), 400 # Bad Request
+
+@app.route('/logout/', methods=['GET',])
+@login_required
+@token_required
+def logout():
+  session.clear()
+
+  return jsonify(message="Logout feito com sucesso!", token=None)
