@@ -1,7 +1,7 @@
 from datetime import timedelta, datetime
 from functools import wraps
 from flask import session, jsonify, request
-import hashlib, jwt
+import hashlib, jwt, os
 
 # Função que permite criptografar informações
 def encrypt_hash(value: str) -> str:
@@ -13,14 +13,14 @@ def encrypt_hash(value: str) -> str:
 # Função que permite criar um token
 def create_token(data: dict) -> str:
   data['exp'] = datetime.utcnow() + timedelta(hours=1)
-  token = jwt.encode(payload=data, key="SECRET", algorithm="HS256")
+  token = jwt.encode(payload=data, key=os.environ.get('SECRET_KEY'), algorithm="HS256")
 
   return token
 
 # Função que permite decodificar o token
 def decode_token(data: dict) -> dict:
   try:
-    decoded_token = jwt.decode(jwt=data, key="SECRET", algorithms=['HS256'])
+    decoded_token = jwt.decode(jwt=data, key=os.environ.get('SECRET_KEY'), algorithms=['HS256'])
   except:
     return None
 
